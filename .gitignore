@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Local data
+data/raw/
+data/processed/
+data/historical/
+
+# Build artifacts
+build/
+dist/
+*.exe
+*.obj
+*.o
+
+# Editors
+.vscode/
+.idea/
+
+# Jupyter
+.ipynb_checkpoints/
