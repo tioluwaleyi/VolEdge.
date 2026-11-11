@@ -1,4 +1,5 @@
 #include "voledge/bsm.hpp"
+#include "voledge/american_crr.hpp"
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
@@ -18,10 +19,37 @@ double numeric_value(const py::object& value, const char* name) {
     return py::cast<double>(value);
 }
 
+int integer_value(const py::object& value, const char* name) {
+    if (PyBool_Check(value.ptr()) || !PyLong_Check(value.ptr())) {
+        throw py::type_error(std::string(name) + " must be an integer");
+    }
+
+    const py::int_ minimum = 1;
+    const py::int_ maximum = 10'000;
+    const int below_minimum =
+        PyObject_RichCompareBool(value.ptr(), minimum.ptr(), Py_LT);
+    if (below_minimum < 0) {
+        throw py::error_already_set();
+    }
+    if (below_minimum != 0) {
+        throw py::value_error("steps must be at least 1");
+    }
+    const int above_maximum =
+        PyObject_RichCompareBool(value.ptr(), maximum.ptr(), Py_GT);
+    if (above_maximum < 0) {
+        throw py::error_already_set();
+    }
+    if (above_maximum != 0) {
+        throw py::value_error("steps cannot exceed 10000");
+    }
+
+    return py::cast<int>(value);
+}
+
 }  // namespace
 
 PYBIND11_MODULE(_voledge_native, module) {
-    module.doc() = "Scalar C++20 European BSM pricing for VolEdge";
+    module.doc() = "Scalar C++20 pricing for VolEdge";
 
     py::enum_<voledge::OptionType>(module, "OptionType")
         .value("call", voledge::OptionType::call)
@@ -107,5 +135,30 @@ PYBIND11_MODULE(_voledge_native, module) {
         py::arg("market"),
         py::arg("model"),
         "Price a European option and return optional per-unit Greeks."
+    );
+
+    module.def(
+        "price_american_crr",
+        [](const voledge::Option& option,
+           const voledge::MarketState& market,
+           const voledge::ModelParameters& model,
+           const py::object& steps) {
+            try {
+                return voledge::price_american_crr(
+                    option,
+                    market,
+                    model,
+                    integer_value(steps, "steps")
+                );
+            } catch (const std::overflow_error& error) {
+                PyErr_SetString(PyExc_ArithmeticError, error.what());
+                throw py::error_already_set();
+            }
+        },
+        py::arg("option"),
+        py::arg("market"),
+        py::arg("model"),
+        py::arg("steps"),
+        "Price an American option with the scalar CRR binomial tree."
     );
 }

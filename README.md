@@ -4,10 +4,10 @@ VolEdge is a Python/C++20 derivatives research project. The current pricing
 milestone contains validated Python contracts, a European Black–Scholes–Merton
 (BSM) reference pricer, and a scalar C++20 implementation with prices and
 Greeks, exposed through a pybind11 extension. Both implementations use
-continuous dividend yield. A Python-only American CRR reference pricer is also
-available; the European BSM APIs, C++ implementation and bindings remain
-unchanged. A standalone scalar C++20 CRR kernel and test driver now match the
-Python reference; CRR has not been exposed through pybind11.
+continuous dividend yield. A Python American CRR reference and scalar C++20
+kernel are available, and the compiled pybind11 module exposes the same
+native CRR kernel. The European BSM APIs, C++ implementation and bindings
+remain unchanged.
 
 ## Conventions
 
@@ -53,9 +53,18 @@ raises `ValueError`; the implementation never clamps it.
 
 At expiry the result is intrinsic value. At zero volatility a deterministic
 risk-neutral spot path is rolled back, still allowing exercise at each of the
-requested tree dates. The function returns a price only; American Greeks,
-C++ CRR, and bindings are deferred. Large trees are computationally
+requested tree dates. The function returns a price only; American Greeks are
+deferred. Large trees are computationally
 expensive; convergence need not improve monotonically with each step count.
+
+The compiled `_voledge_native` module also exposes
+`price_american_crr(option, market, model, steps)`. It accepts the module's
+`Option`, `MarketState` and `ModelParameters` types, returns a scalar price,
+rejects European exercise, and requires `steps` to be an integer (not a bool)
+from 1 through 10,000. Invalid tree probabilities raise `ValueError`, as in
+the Python reference; numerical-range overflow maps to `ArithmeticError`.
+This is a thin binding to the existing C++ kernel; it does not change the
+Python reference or the European BSM API.
 
 ## Reproducible WSL setup
 
@@ -83,6 +92,8 @@ discovery and the tests. The extension is emitted under
 ```sh
 PYTHONPATH=build-wsl-clean-20261111/python python -c \
   "import _voledge_native; print(_voledge_native.__file__)"
+PYTHONPATH=build-wsl-clean-20261111/python:python \
+  python tests/pybind_american_crr_parity_check.py
 ```
 
 ## Test
@@ -99,9 +110,13 @@ Python loaded a compiled extension, so it cannot silently use the reference
 pricer as the native implementation. It compares price and all available
 Greeks for calls and puts, including nonzero dividends, negative rates, expiry
 and zero volatility, with `abs_tol=1e-10` and `rel_tol=1e-10`. It also checks
-American exercise and invalid-spot error translation. CTest runs both this
-binding check and the independent CLI parity check against the Python
-reference.
+American exercise and invalid-spot error translation. CTest runs this
+European binding check and independent CLI parity checks against their Python
+references. The American binding parity check explicitly imports the compiled
+extension, compares eight prices against Python at identical step counts, and
+verifies matching exception types/messages for European exercise, invalid
+probabilities, out-of-range steps, bools and floats. Native price comparisons
+use `abs_tol=1e-10` and `rel_tol=1e-10`.
 
 The Python unittest suite also checks the American CRR one-step hand
 calculation (absolute tolerance `1e-12`), early exercise value for a put, and
@@ -114,5 +129,6 @@ CTest also runs an eight-case Python-to-C++ CRR parity check covering the
 one-step call and put, early-exercise put, no-dividend call, dividend call,
 expiry calls and puts, and zero volatility. Each price uses
 `abs_tol=1e-10`, `rel_tol=1e-10`; invalid step counts and probabilities are
-rejected in both implementations. American Greeks and pybind11 exposure remain
-deferred.
+rejected in both implementations. The American pybind11 binding check uses
+the same eight cases and tolerances; its observed largest absolute difference
+was 0. American Greeks remain deferred.

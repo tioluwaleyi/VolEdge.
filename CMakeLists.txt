@@ -27,13 +27,16 @@ add_library(voledge_american_crr cpp/src/american_crr.cpp)
 target_include_directories(voledge_american_crr PUBLIC cpp/include)
 target_link_libraries(voledge_american_crr PUBLIC voledge_bsm)
 target_compile_features(voledge_american_crr PUBLIC cxx_std_20)
-set_target_properties(voledge_american_crr PROPERTIES CXX_EXTENSIONS OFF)
+set_target_properties(voledge_american_crr PROPERTIES
+    CXX_EXTENSIONS OFF
+    POSITION_INDEPENDENT_CODE ON
+)
 
 add_executable(voledge_american_crr_cli cpp/src/american_crr_cli.cpp)
 target_link_libraries(voledge_american_crr_cli PRIVATE voledge_american_crr)
 
 pybind11_add_module(_voledge_native bindings/python.cpp)
-target_link_libraries(_voledge_native PRIVATE voledge_bsm)
+target_link_libraries(_voledge_native PRIVATE voledge_bsm voledge_american_crr)
 target_compile_features(_voledge_native PRIVATE cxx_std_20)
 set_target_properties(_voledge_native PROPERTIES
     CXX_EXTENSIONS OFF
@@ -88,4 +91,12 @@ add_test(
         ${Python3_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/american_crr_parity_check.py
         $<TARGET_FILE:voledge_american_crr_cli>
+)
+add_test(
+    NAME pybind_american_crr_parity
+    COMMAND
+        ${CMAKE_COMMAND} -E env
+        "PYTHONPATH=${CMAKE_BINARY_DIR}/python${_pythonpath_separator}${CMAKE_CURRENT_SOURCE_DIR}/python"
+        ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/pybind_american_crr_parity_check.py
 )
