@@ -156,3 +156,78 @@ def american_crr_price(
         values = next_values
 
     return values[0]
+
+
+def american_crr_greeks(
+    option: Option,
+    market: MarketState,
+    model: ModelParameters,
+    steps: int,
+    relative_spot_bump: float = 1e-3,
+) -> tuple[float, float] | None:
+    """Estimate American CRR delta and gamma with centered spot bumps.
+
+    The default absolute bump is 0.1% of spot. Delta uses the centered
+    two-point difference and gamma the centered three-point difference, with
+    all prices computed using the same tree step count. The returned tuple is
+    ``(delta, gamma)``. Estimates are unavailable at expiry or zero
+    volatility. A bump that makes the lower spot nonpositive is rejected.
+
+    Finite-tree estimates can be unstable near exercise boundaries and need
+    not converge monotonically as the bump or step count changes.
+    """
+    if (
+        isinstance(relative_spot_bump, bool)
+        or not isinstance(relative_spot_bump, (int, float))
+    ):
+        raise TypeError("relative_spot_bump must be a number")
+    try:
+        relative_spot_bump = float(relative_spot_bump)
+    except OverflowError as error:
+        raise ValueError("relative_spot_bump must be finite") from error
+    if not isfinite(relative_spot_bump):
+        raise ValueError("relative_spot_bump must be finite")
+    if relative_spot_bump <= 0.0:
+        raise ValueError("relative_spot_bump must be positive")
+
+    center_price = american_crr_price(option, market, model, steps)
+    if option.maturity_years == 0.0 or model.volatility == 0.0:
+        return None
+
+    spot = market.spot
+    bump = spot * relative_spot_bump
+    if not isfinite(bump) or bump <= 0.0:
+        raise ArithmeticError("Spot bump is outside the supported range")
+    down_spot = spot - bump
+    up_spot = spot + bump
+    if down_spot <= 0.0:
+        raise ValueError("relative_spot_bump makes the lower spot nonpositive")
+    if not isfinite(up_spot):
+        raise ArithmeticError("Bumped spot is outside the supported range")
+    bump_squared = bump * bump
+    if (
+        down_spot == spot
+        or up_spot == spot
+        or not isfinite(bump_squared)
+        or bump_squared <= 0.0
+    ):
+        raise ValueError("relative_spot_bump is too small for this spot")
+
+    up_price = american_crr_price(
+        option,
+        MarketState(up_spot, market.rate, market.dividend_yield),
+        model,
+        steps,
+    )
+    down_price = american_crr_price(
+        option,
+        MarketState(down_spot, market.rate, market.dividend_yield),
+        model,
+        steps,
+    )
+
+    delta = (up_price - down_price) / (2.0 * bump)
+    gamma = (up_price - 2.0 * center_price + down_price) / bump_squared
+    if not isfinite(delta) or not isfinite(gamma):
+        raise ArithmeticError("CRR Greek estimate is nonfinite")
+    return delta, gamma

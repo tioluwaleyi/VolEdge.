@@ -8,7 +8,7 @@ VolEdge is a Python/C++20 derivatives simulation, risk and trading laboratory. P
 
 Agreed first pricing milestone: European calls and puts on a single positive underlying with continuous dividend yield, priced with Black–Scholes–Merton (BSM). Start with synthetic, explicitly labeled inputs; market data and execution adapters are deferred. Outputs are price, delta, gamma, vega, theta and rho. This scope provides an analytical benchmark for subsequent Monte Carlo and risk phases.
 
-American exercise is a separate milestone using a CRR binomial tree; it is not part of the European BSM implementation. The approved Python reference CRR convention is: u=exp(sigma*sqrt(dt)), d=1/u, p=(exp((r-q)*dt)-d)/(u-d), continuation discount exp(-r*dt), and exercise at each tree date. Probabilities outside [0,1] are rejected, not clamped; at zero volatility the deterministic risk-neutral path is rolled back with exercise at each requested date; expiry returns intrinsic. Python and scalar C++20 CRR implementations are present, including a scalar pybind11 binding to the existing C++ kernel. Python-to-C++ and compiled-binding parity checks cover prices and invalid inputs; American Greeks and batch pricing are deferred. Exercise style is a property of the option contract and must not be inferred from its listing venue or the venue's region. Other deferred work includes exotic options, implied-volatility calibration, Black-76, Bachelier, PDE, Heston/jumps, multi-asset correlation, optimization and live execution.
+American exercise is a separate milestone using a CRR binomial tree; it is not part of the European BSM implementation. The approved Python reference CRR convention is: u=exp(sigma*sqrt(dt)), d=1/u, p=(exp((r-q)*dt)-d)/(u-d), continuation discount exp(-r*dt), and exercise at each tree date. Probabilities outside [0,1] are rejected, not clamped; at zero volatility the deterministic risk-neutral path is rolled back with exercise at each requested date; expiry returns intrinsic. Python and scalar C++20 CRR implementations are present, including a scalar pybind11 binding to the existing C++ kernel. Python-to-C++ and compiled-binding parity checks cover prices and invalid inputs. Python additionally estimates CRR delta and gamma with centered spot bumps; native American Greeks and batch pricing are deferred. Exercise style is a property of the option contract and must not be inferred from its listing venue or the venue's region. Other deferred work includes exotic options, implied-volatility calibration, Black-76, Bachelier, PDE, Heston/jumps, multi-asset correlation, optimization and live execution.
 
 ## 2. Proposed conventions — approval pending
 
@@ -30,12 +30,22 @@ American exercise is a separate milestone using a CRR binomial tree; it is not p
 | Expiry | Price equals intrinsic; Greeks unavailable at T=0 in v0.1 |
 | Zero volatility | Discounted deterministic payoff; Greeks unavailable at sigma=0 in v0.1 |
 | American CRR step count | Python reference requires integer steps in [1, 10000] |
+| American CRR delta/gamma | Python finite differences only: h=0.001*S by default, configurable positive relative bump; centered two-point delta and three-point gamma; tuple (delta, gamma); unavailable at expiry and zero volatility; reject S-h<=0 |
 
 The absence of dates is deliberate: no day-count convention is silently selected. Any later market calendar/date adapter needs a documented decision.
 
 The CRR step-count bound is a resource limit for the O(steps^2) Python tree.
 Its zero-volatility rule and strict invalid-probability handling are recorded
 above; no probability clipping is performed.
+
+The approved Python-only CRR delta/gamma estimate uses
+h=relative_spot_bump*S (default 0.001*S), delta=[V(S+h)-V(S-h)]/(2h), and
+gamma=[V(S+h)-2V(S)+V(S-h)]/h^2, holding the tree step count fixed across
+the three prices. It returns None at expiry or zero volatility and raises
+ValueError when S-h is nonpositive; no clamping or one-sided fallback is
+used. These finite-tree estimates can be unstable near exercise boundaries
+and sensitive to bump size and tree steps; monotone convergence is not
+assumed. This convention does not add Greeks to the C++ kernel or binding.
 
 ## 3. Model registry proposal
 
@@ -148,14 +158,14 @@ P0: approved initial scope and conventions; model registry; reviewed input/outpu
 | Pricing units, maturity, boundaries and errors | Proposed; owner approval pending |
 | Typed contract definitions | Python contracts and scalar C++ pricing types implemented |
 | Threat model | Drafted; controls not yet implemented/tested |
-| Reference cases and tolerances | Python benchmarks/finite differences, BSM binding parity, 8-case Python/C++ CRR parity, and 8-case compiled American binding parity passed; native comparison tolerance 1e-10 absolute and relative |
-| Repository commit/build evidence | No commit; WSL direct C++20 build and parity verification completed |
+| Reference cases and tolerances | Python benchmarks/finite differences, BSM binding parity, 8-case Python/C++ CRR parity, 8-case compiled American binding parity, and Python CRR delta/gamma checks against BSM and immediate-exercise fixtures |
+| Repository commit/build evidence | Prior source commits through 275cd5d; this Python Greek-estimate change remains uncommitted; WSL C++ build and four CTest checks verified |
 | P0 gate | OPEN; specification prepared, decisions not frozen |
 
 Initial scope decision: European calls/puts with continuous dividend yield come first; American exercise remains a separate CRR binomial-tree milestone. Exercise style is explicitly carried by the contract, independent of venue. Remaining conventions (direct year-fraction input, annual decimal units, and boundary prices with unavailable Greeks) remain subject to owner approval.
 
 Tracker-ready entry:
-P0/P1 | European BSM scope agreed; American CRR conventions approved separately | BSM/bindings commit 3a5a3e1; Python CRR commit 4e744a8; C++ CRR commit 9cbec8f | Python unittest and CTest results recorded in steps.md | Python/C++ European BSM and American CRR parity, including compiled American binding; 25 Python tests and 4 CTest checks passed | American Greeks and batch pricing deferred | continue numerical validation without requiring monotone tree convergence
+P0/P1 | European BSM scope agreed; American CRR conventions approved separately; Python finite-difference CRR delta/gamma convention approved | BSM/bindings commit 3a5a3e1; Python CRR commit 4e744a8; C++ CRR commit 9cbec8f; binding commit 275cd5d | Python unittest and CTest results recorded in steps.md | Python/C++ European BSM and American CRR parity, compiled American binding, and Python CRR delta/gamma checks | Native American Greeks and batch pricing deferred | continue numerical validation without requiring monotone tree convergence
 
 ## Sources
 

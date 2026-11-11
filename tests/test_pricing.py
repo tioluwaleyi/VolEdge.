@@ -8,7 +8,11 @@ from voledge.contracts import (
     Option,
     OptionType,
 )
-from voledge.american import MAX_CRR_STEPS, american_crr_price
+from voledge.american import (
+    MAX_CRR_STEPS,
+    american_crr_greeks,
+    american_crr_price,
+)
 from voledge.pricing import bsm_greeks, bsm_price
 
 
@@ -271,6 +275,131 @@ class PricingTests(unittest.TestCase):
             model,
         )
         self.assertAlmostEqual(tree_price, bsm_call, delta=0.01)
+
+    def test_american_call_crr_greeks_match_european_bsm(self):
+        american_option = self.option(
+            OptionType.CALL,
+            style=ExerciseStyle.AMERICAN,
+        )
+        european_option = self.option(OptionType.CALL)
+        market = MarketState(100.0, 0.05, 0.0)
+        model = ModelParameters(0.20)
+        expected = bsm_greeks(european_option, market, model)
+        self.assertIsNotNone(expected)
+
+        estimates = american_crr_greeks(
+            american_option,
+            market,
+            model,
+            steps=800,
+            relative_spot_bump=0.05,
+        )
+        self.assertIsNotNone(estimates)
+        delta, gamma = estimates
+        self.assertAlmostEqual(delta, expected.delta, delta=0.0022)
+        self.assertAlmostEqual(gamma, expected.gamma, delta=0.00035)
+
+    def test_american_crr_greeks_sensitivity_to_bump_and_steps(self):
+        option = self.option(
+            OptionType.CALL,
+            style=ExerciseStyle.AMERICAN,
+        )
+        market = MarketState(100.0, 0.05, 0.0)
+        model = ModelParameters(0.20)
+        default_bump = american_crr_greeks(
+            option, market, model, steps=800
+        )
+        wider_bump = american_crr_greeks(
+            option,
+            market,
+            model,
+            steps=800,
+            relative_spot_bump=0.05,
+        )
+        fewer_steps = american_crr_greeks(
+            option,
+            market,
+            model,
+            steps=400,
+            relative_spot_bump=0.05,
+        )
+        self.assertGreater(abs(default_bump[1] - wider_bump[1]), 0.2)
+        self.assertGreater(abs(fewer_steps[1] - wider_bump[1]), 0.0002)
+
+    def test_deep_in_the_money_american_put_crr_greeks(self):
+        option = Option(
+            OptionType.PUT,
+            ExerciseStyle.AMERICAN,
+            100.0,
+            1.0,
+            "USD",
+        )
+        market = MarketState(40.0, 0.10, 0.0)
+        model = ModelParameters(0.20)
+        bump = market.spot * 0.001
+
+        for spot in (market.spot - bump, market.spot, market.spot + bump):
+            with self.subTest(spot=spot):
+                price = american_crr_price(
+                    option,
+                    MarketState(spot, market.rate, market.dividend_yield),
+                    model,
+                    steps=200,
+                )
+                self.assertAlmostEqual(100.0 - spot, price, delta=1e-12)
+
+        estimates = american_crr_greeks(
+            option, market, model, steps=200
+        )
+        self.assertIsNotNone(estimates)
+        self.assertAlmostEqual(estimates[0], -1.0, delta=1e-9)
+        self.assertAlmostEqual(estimates[1], 0.0, delta=1e-8)
+
+    def test_american_crr_greeks_boundaries_and_bump_validation(self):
+        option = self.option(
+            OptionType.CALL,
+            style=ExerciseStyle.AMERICAN,
+        )
+        market = MarketState(100.0, 0.05, 0.0)
+        self.assertIsNone(
+            american_crr_greeks(
+                self.option(
+                    OptionType.CALL,
+                    maturity=0.0,
+                    style=ExerciseStyle.AMERICAN,
+                ),
+                market,
+                ModelParameters(0.20),
+                steps=10,
+            )
+        )
+        self.assertIsNone(
+            american_crr_greeks(
+                option,
+                market,
+                ModelParameters(0.0),
+                steps=10,
+            )
+        )
+
+        with self.assertRaisesRegex(ValueError, "lower spot nonpositive"):
+            american_crr_greeks(
+                option,
+                market,
+                ModelParameters(0.20),
+                steps=10,
+                relative_spot_bump=1.0,
+            )
+        for invalid_bump in (True, 0.0, -0.1, float("inf")):
+            with self.subTest(relative_spot_bump=invalid_bump):
+                with self.assertRaises((TypeError, ValueError)):
+                    american_crr_greeks(
+                        option,
+                        market,
+                        ModelParameters(0.20),
+                        steps=10,
+                        relative_spot_bump=invalid_bump,
+                    )
 
     def test_american_crr_expiry_and_zero_volatility(self):
         put = self.option(

@@ -53,9 +53,20 @@ raises `ValueError`; the implementation never clamps it.
 
 At expiry the result is intrinsic value. At zero volatility a deterministic
 risk-neutral spot path is rolled back, still allowing exercise at each of the
-requested tree dates. The function returns a price only; American Greeks are
-deferred. Large trees are computationally
-expensive; convergence need not improve monotonically with each step count.
+requested tree dates. Large trees are computationally expensive; convergence
+need not improve monotonically with each step count.
+
+The Python reference also provides `american_crr_greeks`, which returns a
+`(delta, gamma)` tuple estimated from spot bumps. By default `h=0.001*S`;
+callers can supply a positive `relative_spot_bump`. It uses
+`delta=[V(S+h)-V(S-h)]/(2h)` and
+`gamma=[V(S+h)-2V(S)+V(S-h)]/h^2`, reusing the requested CRR step count for
+all prices. It returns `None` at expiry or zero volatility. If `S-h <= 0`, it
+raises `ValueError` rather than clamping spot or switching to a one-sided
+difference. These are finite-tree estimates, not analytic Greeks: lattice
+effects can make them bump-sensitive and unstable near exercise boundaries.
+Do not assume estimates converge monotonically with bump size or step count.
+The C++ CRR kernel and binding continue to expose prices only.
 
 The compiled `_voledge_native` module also exposes
 `price_american_crr(option, market, model, steps)`. It accepts the module's
@@ -121,9 +132,21 @@ use `abs_tol=1e-10` and `rel_tol=1e-10`.
 The Python unittest suite also checks the American CRR one-step hand
 calculation (absolute tolerance `1e-12`), early exercise value for a put, and
 a non-dividend-paying call against European BSM at 2,000 steps (absolute
-tolerance `0.01`). It tests expiry, zero volatility, invalid probabilities,
-exercise style and step-count validation. Tree errors are not required to
-decrease at every increase in the step count.
+tolerance `0.01`). The CRR delta/gamma check for a no-dividend call uses 800
+steps and a 5% relative bump: measured delta was `0.6347334416` versus BSM
+`0.6368306512` (absolute difference `0.00209721`), and gamma was
+`0.0190561523` versus BSM `0.0187620173` (absolute difference `0.00029414`).
+The test tolerances are `0.0022` for delta and `0.00035` for gamma. At 800
+steps, changing the relative bump from the default 0.1% to 5% changed gamma
+from `0.2652518` to `0.0190562`; at a 5% bump, changing steps from 400 to 800
+changed gamma from `0.0194240` to `0.0190562`. These results demonstrate
+lattice/bump sensitivity, not a monotone convergence guarantee. A deep
+in-the-money put fixture verifies immediate exercise at the base and both
+bumped spots, with delta `-1` and gamma `0` within `1e-8`.
+
+The suite also tests expiry, zero volatility, bump validation, invalid
+probabilities, exercise style and step-count validation. Tree errors are not
+required to decrease at every increase in the step count.
 
 CTest also runs an eight-case Python-to-C++ CRR parity check covering the
 one-step call and put, early-exercise put, no-dividend call, dividend call,
@@ -131,4 +154,6 @@ expiry calls and puts, and zero volatility. Each price uses
 `abs_tol=1e-10`, `rel_tol=1e-10`; invalid step counts and probabilities are
 rejected in both implementations. The American pybind11 binding check uses
 the same eight cases and tolerances; its observed largest absolute difference
-was 0. American Greeks remain deferred.
+was 0. American delta/gamma are Python reference estimates only; native
+American Greeks, including analytic or tree-derived sensitivities, remain
+deferred.
