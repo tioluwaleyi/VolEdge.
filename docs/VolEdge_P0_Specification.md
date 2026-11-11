@@ -8,7 +8,7 @@ VolEdge is a Python/C++20 derivatives simulation, risk and trading laboratory. P
 
 Agreed first pricing milestone: European calls and puts on a single positive underlying with continuous dividend yield, priced with Black–Scholes–Merton (BSM). Start with synthetic, explicitly labeled inputs; market data and execution adapters are deferred. Outputs are price, delta, gamma, vega, theta and rho. This scope provides an analytical benchmark for subsequent Monte Carlo and risk phases.
 
-American exercise is a separate milestone using a CRR binomial tree; it is not part of the European BSM implementation. The Python reference CRR convention is now approved: u=exp(sigma*sqrt(dt)), d=1/u, p=(exp((r-q)*dt)-d)/(u-d), continuation discount exp(-r*dt), and exercise at each tree date. Probabilities outside [0,1] are rejected, not clamped; at zero volatility the deterministic risk-neutral path is rolled back with exercise at each requested date; expiry returns intrinsic. The Python CRR implementation is present; American Greeks, C++ CRR and bindings are deferred. Exercise style is a property of the option contract and must not be inferred from its listing venue or the venue's region. Other deferred work includes exotic options, implied-volatility calibration, Black-76, Bachelier, PDE, Heston/jumps, multi-asset correlation, optimization and live execution.
+American exercise is a separate milestone using a CRR binomial tree; it is not part of the European BSM implementation. The approved Python reference CRR convention is: u=exp(sigma*sqrt(dt)), d=1/u, p=(exp((r-q)*dt)-d)/(u-d), continuation discount exp(-r*dt), and exercise at each tree date. Probabilities outside [0,1] are rejected, not clamped; at zero volatility the deterministic risk-neutral path is rolled back with exercise at each requested date; expiry returns intrinsic. Python and scalar C++20 CRR implementations are present and checked by a Python-to-C++ parity test; American Greeks and pybind11 bindings are deferred. Exercise style is a property of the option contract and must not be inferred from its listing venue or the venue's region. Other deferred work includes exotic options, implied-volatility calibration, Black-76, Bachelier, PDE, Heston/jumps, multi-asset correlation, optimization and live execution.
 
 ## 2. Proposed conventions — approval pending
 
@@ -144,18 +144,18 @@ P0: approved initial scope and conventions; model registry; reviewed input/outpu
 
 | Requirement | Current state |
 |---|---|
-| Initial instrument and model scope | Agreed: European BSM first; Python American CRR is a separate reference milestone |
+| Initial instrument and model scope | Agreed: European BSM first; Python/C++ American CRR is a separate reference milestone |
 | Pricing units, maturity, boundaries and errors | Proposed; owner approval pending |
 | Typed contract definitions | Python contracts and scalar C++ pricing types implemented |
 | Threat model | Drafted; controls not yet implemented/tested |
-| Reference cases and tolerances | Python benchmarks/finite differences and C++/Python parity checks run; native comparison tolerance 1e-10 absolute and relative |
+| Reference cases and tolerances | Python benchmarks/finite differences, BSM binding parity, and 8-case Python/C++ CRR parity run; native comparison tolerance 1e-10 absolute and relative |
 | Repository commit/build evidence | No commit; WSL direct C++20 build and parity verification completed |
 | P0 gate | OPEN; specification prepared, decisions not frozen |
 
 Initial scope decision: European calls/puts with continuous dividend yield come first; American exercise remains a separate CRR binomial-tree milestone. Exercise style is explicitly carried by the contract, independent of venue. Remaining conventions (direct year-fraction input, annual decimal units, and boundary prices with unavailable Greeks) remain subject to owner approval.
 
 Tracker-ready entry:
-P0/P1 | European BSM scope agreed; American CRR conventions approved separately | commit 3a5a3e1 for BSM/bindings | Python unittest and CTest results recorded in steps.md | Python and C++ European BSM with binding; Python American CRR reference | American Greeks/C++/bindings deferred | continue numerical validation without requiring monotone tree convergence
+P0/P1 | European BSM scope agreed; American CRR conventions approved separately | BSM/bindings commit 3a5a3e1; Python CRR commit 4e744a8 | Python unittest and CTest results recorded in steps.md | Python/C++ European BSM and Python/C++ American CRR parity; no CRR binding | American Greeks and pybind11 exposure deferred | continue numerical validation without requiring monotone tree convergence
 
 ## Sources
 

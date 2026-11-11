@@ -6,7 +6,8 @@ milestone contains validated Python contracts, a European Black–Scholes–Mert
 Greeks, exposed through a pybind11 extension. Both implementations use
 continuous dividend yield. A Python-only American CRR reference pricer is also
 available; the European BSM APIs, C++ implementation and bindings remain
-unchanged.
+unchanged. A standalone scalar C++20 CRR kernel and test driver now match the
+Python reference; CRR has not been exposed through pybind11.
 
 ## Conventions
 
@@ -108,3 +109,10 @@ a non-dividend-paying call against European BSM at 2,000 steps (absolute
 tolerance `0.01`). It tests expiry, zero volatility, invalid probabilities,
 exercise style and step-count validation. Tree errors are not required to
 decrease at every increase in the step count.
+
+CTest also runs an eight-case Python-to-C++ CRR parity check covering the
+one-step call and put, early-exercise put, no-dividend call, dividend call,
+expiry calls and puts, and zero volatility. Each price uses
+`abs_tol=1e-10`, `rel_tol=1e-10`; invalid step counts and probabilities are
+rejected in both implementations. American Greeks and pybind11 exposure remain
+deferred.

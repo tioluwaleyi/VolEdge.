@@ -23,6 +23,15 @@ set_target_properties(voledge_bsm PROPERTIES
 add_executable(voledge_bsm_cli cpp/src/bsm_cli.cpp)
 target_link_libraries(voledge_bsm_cli PRIVATE voledge_bsm)
 
+add_library(voledge_american_crr cpp/src/american_crr.cpp)
+target_include_directories(voledge_american_crr PUBLIC cpp/include)
+target_link_libraries(voledge_american_crr PUBLIC voledge_bsm)
+target_compile_features(voledge_american_crr PUBLIC cxx_std_20)
+set_target_properties(voledge_american_crr PROPERTIES CXX_EXTENSIONS OFF)
+
+add_executable(voledge_american_crr_cli cpp/src/american_crr_cli.cpp)
+target_link_libraries(voledge_american_crr_cli PRIVATE voledge_american_crr)
+
 pybind11_add_module(_voledge_native bindings/python.cpp)
 target_link_libraries(_voledge_native PRIVATE voledge_bsm)
 target_compile_features(_voledge_native PRIVATE cxx_std_20)
@@ -35,10 +44,14 @@ set_target_properties(_voledge_native PROPERTIES
 if(MSVC)
     target_compile_options(voledge_bsm PRIVATE /W4 /WX)
     target_compile_options(voledge_bsm_cli PRIVATE /W4 /WX)
+    target_compile_options(voledge_american_crr PRIVATE /W4 /WX)
+    target_compile_options(voledge_american_crr_cli PRIVATE /W4 /WX)
     target_compile_options(_voledge_native PRIVATE /W4 /WX)
 else()
     target_compile_options(voledge_bsm PRIVATE -Wall -Wextra -Wpedantic -Werror)
     target_compile_options(voledge_bsm_cli PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    target_compile_options(voledge_american_crr PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    target_compile_options(voledge_american_crr_cli PRIVATE -Wall -Wextra -Wpedantic -Werror)
     target_compile_options(_voledge_native PRIVATE -Wall -Wextra -Wpedantic -Werror)
 endif()
 
@@ -66,4 +79,13 @@ add_test(
 )
 set_tests_properties(pybind_python_parity PROPERTIES
     DEPENDS cpp_python_parity
+)
+add_test(
+    NAME american_crr_python_parity
+    COMMAND
+        ${CMAKE_COMMAND} -E env
+        "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/python"
+        ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/american_crr_parity_check.py
+        $<TARGET_FILE:voledge_american_crr_cli>
 )
