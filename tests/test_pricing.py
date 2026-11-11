@@ -8,6 +8,7 @@ from voledge.contracts import (
     Option,
     OptionType,
 )
+from voledge.american import MAX_CRR_STEPS, american_crr_price
 from voledge.pricing import bsm_greeks, bsm_price
 
 
@@ -209,6 +210,138 @@ class PricingTests(unittest.TestCase):
                 MarketState(100.0, 0.05, 0.0),
                 ModelParameters(0.20),
             )
+
+    def test_american_crr_one_step_hand_calculation(self):
+        market = MarketState(100.0, 0.05, 0.02)
+        model = ModelParameters(0.20)
+        for kind, expected in (
+            (OptionType.CALL, 11.073540703840242),
+            (OptionType.PUT, 8.176615823236105),
+        ):
+            with self.subTest(kind=kind):
+                price = american_crr_price(
+                    self.option(kind, style=ExerciseStyle.AMERICAN),
+                    market,
+                    model,
+                    steps=1,
+                )
+                self.assertAlmostEqual(price, expected, delta=1e-12)
+
+    def test_american_put_early_exercise_adds_value(self):
+        option = Option(
+            OptionType.PUT,
+            ExerciseStyle.AMERICAN,
+            50.0,
+            1.0,
+            "USD",
+        )
+        market = MarketState(40.0, 0.10, 0.0)
+        model = ModelParameters(0.20)
+        american_price = american_crr_price(option, market, model, steps=100)
+        european_price = bsm_price(
+            Option(
+                OptionType.PUT,
+                ExerciseStyle.EUROPEAN,
+                50.0,
+                1.0,
+                "USD",
+            ),
+            market,
+            model,
+        )
+        self.assertGreater(american_price, european_price)
+
+    def test_american_call_converges_to_european_bsm(self):
+        option = self.option(
+            OptionType.CALL,
+            style=ExerciseStyle.AMERICAN,
+        )
+        market = MarketState(100.0, 0.05, 0.0)
+        model = ModelParameters(0.20)
+        tree_price = american_crr_price(option, market, model, steps=2000)
+        bsm_call = bsm_price(
+            Option(
+                OptionType.CALL,
+                ExerciseStyle.EUROPEAN,
+                100.0,
+                1.0,
+                "USD",
+            ),
+            market,
+            model,
+        )
+        self.assertAlmostEqual(tree_price, bsm_call, delta=0.01)
+
+    def test_american_crr_expiry_and_zero_volatility(self):
+        put = self.option(
+            OptionType.PUT,
+            maturity=0.0,
+            style=ExerciseStyle.AMERICAN,
+        )
+        self.assertEqual(
+            american_crr_price(
+                put,
+                MarketState(90.0, 0.05, 0.0),
+                ModelParameters(0.20),
+                steps=3,
+            ),
+            10.0,
+        )
+
+        deterministic_put = Option(
+            OptionType.PUT,
+            ExerciseStyle.AMERICAN,
+            100.0,
+            1.0,
+            "USD",
+        )
+        self.assertEqual(
+            american_crr_price(
+                deterministic_put,
+                MarketState(80.0, 0.10, 0.0),
+                ModelParameters(0.0),
+                steps=4,
+            ),
+            20.0,
+        )
+
+    def test_american_crr_rejects_invalid_probability(self):
+        option = self.option(
+            OptionType.CALL,
+            style=ExerciseStyle.AMERICAN,
+        )
+        with self.assertRaisesRegex(ValueError, "probability is outside"):
+            american_crr_price(
+                option,
+                MarketState(100.0, 0.50, 0.0),
+                ModelParameters(0.01),
+                steps=1,
+            )
+
+    def test_american_crr_validates_style_and_steps(self):
+        american_call = self.option(
+            OptionType.CALL,
+            style=ExerciseStyle.AMERICAN,
+        )
+        market = MarketState(100.0, 0.05, 0.0)
+        model = ModelParameters(0.20)
+
+        with self.assertRaisesRegex(ValueError, "American exercise"):
+            american_crr_price(
+                self.option(OptionType.CALL),
+                market,
+                model,
+                steps=10,
+            )
+        for invalid_steps in (True, 1.5, 0, -1, MAX_CRR_STEPS + 1):
+            with self.subTest(steps=invalid_steps):
+                with self.assertRaises((TypeError, ValueError)):
+                    american_crr_price(
+                        american_call,
+                        market,
+                        model,
+                        steps=invalid_steps,
+                    )
 
 
 if __name__ == "__main__":

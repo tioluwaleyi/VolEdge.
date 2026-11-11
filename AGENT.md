@@ -6,7 +6,7 @@ Guidance for AI coding agents working in this repository. Read this file fully b
 
 - **Name:** VolEdge
 - **Purpose:** A Python/C++ derivatives simulation, risk and trading laboratory. It links financial simulation, derivatives pricing accuracy, portfolio risk and trading infrastructure in one reproducible research workflow.
-- **Status:** Early implementation. Python input contracts and a European continuous-yield BSM reference pricer, a scalar C++20 BSM kernel, and a pybind11 extension are implemented. The current WSL verification uses Python 3.14.4, GCC 15.2, CMake 4.4.4 and pybind11 3.1.0; 19 Python unit tests and 2 CTest checks pass, including Python/native parity. The broader research, simulation, risk, strategy and execution architecture remains a proposal; do not claim components are complete unless built and verified in this repo.
+- **Status:** Early implementation. Python input contracts, a European continuous-yield BSM reference pricer, a scalar C++20 BSM kernel and pybind11 extension, and a Python American CRR reference pricer are implemented. The current WSL verification uses Python 3.14.4, GCC 15.2, CMake 4.4.4 and pybind11 3.1.0; 25 Python unit tests and 2 CTest checks pass, including Python/native parity. The broader research, simulation, risk, strategy and execution architecture remains a proposal; do not claim components are complete unless built and verified in this repo.
 
 ## Architecture
 
@@ -167,5 +167,5 @@ Every milestone needs a source commit, a reproducible command, test output, a be
 
 ## Known Issues and Gotchas
 
-- The current native pricing scope is European BSM only; American CRR, NumPy/batch pricing, and installed-package behavior are not implemented or verified.
+- The native pricing scope is European BSM only. American Greeks, C++ CRR, CRR bindings, NumPy/batch pricing, and installed-package behavior are not implemented or verified.
 - The recorded build and test verification is for WSL/Linux with the tool versions stated above; other operating systems, compilers and Python versions remain unverified.

@@ -8,7 +8,7 @@ VolEdge is a Python/C++20 derivatives simulation, risk and trading laboratory. P
 
 Agreed first pricing milestone: European calls and puts on a single positive underlying with continuous dividend yield, priced with Black–Scholes–Merton (BSM). Start with synthetic, explicitly labeled inputs; market data and execution adapters are deferred. Outputs are price, delta, gamma, vega, theta and rho. This scope provides an analytical benchmark for subsequent Monte Carlo and risk phases.
 
-American exercise is a separate later milestone using a CRR binomial tree; it is not part of the European BSM implementation. Exercise style is a property of the option contract and must not be inferred from its listing venue or the venue's region. Other deferred work includes exotic options, implied-volatility calibration, Black-76, Bachelier, PDE, Heston/jumps, multi-asset correlation, optimization and live execution.
+American exercise is a separate milestone using a CRR binomial tree; it is not part of the European BSM implementation. The Python reference CRR convention is now approved: u=exp(sigma*sqrt(dt)), d=1/u, p=(exp((r-q)*dt)-d)/(u-d), continuation discount exp(-r*dt), and exercise at each tree date. Probabilities outside [0,1] are rejected, not clamped; at zero volatility the deterministic risk-neutral path is rolled back with exercise at each requested date; expiry returns intrinsic. The Python CRR implementation is present; American Greeks, C++ CRR and bindings are deferred. Exercise style is a property of the option contract and must not be inferred from its listing venue or the venue's region. Other deferred work includes exotic options, implied-volatility calibration, Black-76, Bachelier, PDE, Heston/jumps, multi-asset correlation, optimization and live execution.
 
 ## 2. Proposed conventions — approval pending
 
@@ -29,8 +29,13 @@ American exercise is a separate later milestone using a CRR binomial tree; it is
 | Position | Signed contract quantity times positive multiplier times unit price/Greek |
 | Expiry | Price equals intrinsic; Greeks unavailable at T=0 in v0.1 |
 | Zero volatility | Discounted deterministic payoff; Greeks unavailable at sigma=0 in v0.1 |
+| American CRR step count | Python reference requires integer steps in [1, 10000] |
 
 The absence of dates is deliberate: no day-count convention is silently selected. Any later market calendar/date adapter needs a documented decision.
+
+The CRR step-count bound is a resource limit for the O(steps^2) Python tree.
+Its zero-volatility rule and strict invalid-probability handling are recorded
+above; no probability clipping is performed.
 
 ## 3. Model registry proposal
 
@@ -139,7 +144,7 @@ P0: approved initial scope and conventions; model registry; reviewed input/outpu
 
 | Requirement | Current state |
 |---|---|
-| Initial instrument and model scope | Agreed: European BSM first; American exercise is a separate later CRR milestone |
+| Initial instrument and model scope | Agreed: European BSM first; Python American CRR is a separate reference milestone |
 | Pricing units, maturity, boundaries and errors | Proposed; owner approval pending |
 | Typed contract definitions | Python contracts and scalar C++ pricing types implemented |
 | Threat model | Drafted; controls not yet implemented/tested |
@@ -150,7 +155,7 @@ P0: approved initial scope and conventions; model registry; reviewed input/outpu
 Initial scope decision: European calls/puts with continuous dividend yield come first; American exercise remains a separate CRR binomial-tree milestone. Exercise style is explicitly carried by the contract, independent of venue. Remaining conventions (direct year-fraction input, annual decimal units, and boundary prices with unavailable Greeks) remain subject to owner approval.
 
 Tracker-ready entry:
-P0/P1 | European BSM scope agreed; remaining convention approval pending | no source commit | WSL g++ build, Python unittest (19 passed), C++/Python parity (8 cases passed) | scalar Python/C++ BSM prices and Greeks implemented; no bindings | CMake path unverified because CMake is unavailable in WSL | add pybind11 bindings in a separate milestone
+P0/P1 | European BSM scope agreed; American CRR conventions approved separately | commit 3a5a3e1 for BSM/bindings | Python unittest and CTest results recorded in steps.md | Python and C++ European BSM with binding; Python American CRR reference | American Greeks/C++/bindings deferred | continue numerical validation without requiring monotone tree convergence
 
 ## Sources
 
