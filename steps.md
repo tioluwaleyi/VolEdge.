@@ -8,7 +8,10 @@ Measurement: for the no-dividend call (S=K=100, T=1, r=0.05, sigma=0.20), 800 st
 
 Verified in WSL using Python 3.14.4, GCC 15.2, CMake 4.4.4 and pybind11 3.1.0:
 
+- `PYTHONPATH=python python tests/american_crr_greek_diagnostic.py` — passed; swept bumps 0.001/0.02/0.05 and 80/160/320 steps across three call and four put cases, printing every estimate, BSM error for the no-dividend calls, exercise-state triplets, and neighbor-stability labels.
 - `PYTHONPATH=python python -m unittest discover -s tests -v` — passed, 29 tests.
 - `ctest --test-dir build-wsl-clean-20261111 --output-on-failure` — passed, all 4 checks.
 
 This Greek-estimation change did not modify native kernels, bindings, or CMake configuration. Work remains uncommitted. American theta/vega/rho, native American Greeks, and batch pricing remain deferred.
+
+Diagnostic findings: maximum absolute call Greek errors versus BSM over all nine bump/step combinations were ITM delta/gamma `0.0227528`/`0.214811`, ATM `0.00270875`/`0.817674`, and OTM `0.0120861`/`0.0218197`. ATM call gamma at the default 0.1% bump ranged from `0.419203` to `0.836436`, compared with BSM gamma `0.0187620`. Stability labels use adjacent absolute-change screens of 0.01 for delta and 0.0005 for gamma; they describe this grid only, not accuracy. Delta/gamma were stable by those screens for the deep ITM put, which exercised at base and bumped spots (delta -1, gamma approximately 0). For the S=83 put, the upper 5% spot bump (87.15) changed to continuation for 160/320 steps, but stayed exercise at 80 steps; gamma near this exercise boundary is unreliable. Do not select a new bump default from these cases or assume more steps always improve estimates.

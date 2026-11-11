@@ -68,6 +68,54 @@ effects can make them bump-sensitive and unstable near exercise boundaries.
 Do not assume estimates converge monotonically with bump size or step count.
 The C++ CRR kernel and binding continue to expose prices only.
 
+Run the reproducible, laptop-sized sensitivity sweep from the repository root
+with:
+
+```sh
+PYTHONPATH=python python tests/american_crr_greek_diagnostic.py
+```
+
+It sweeps relative bumps `0.001`, `0.02`, and `0.05` with 80, 160, and 320
+tree steps across ITM/ATM/OTM calls and puts, plus a put near its early
+exercise boundary. Non-dividend calls at positive rates are compared with
+European BSM Greeks. For its descriptive stability labels only, adjacent
+changes up to `0.01` in delta and `0.0005` in gamma are called stable; these
+thresholds are not error guarantees.
+
+The diagnostic's observed neighboring-change classifications were:
+
+| Case | Delta: bump / steps | Gamma: bump / steps |
+|---|---|---|
+| Call ITM | unstable / unstable | unstable / unstable |
+| Call ATM | stable / stable | unstable / unstable |
+| Call OTM | unstable / unstable | unstable / unstable |
+| Put ITM, always exercise | stable / stable | stable / stable |
+| Put ATM | unstable / stable | unstable / unstable |
+| Put OTM | stable / stable | unstable / unstable |
+| Put near boundary | stable / stable | unstable / unstable |
+
+These are classifications of adjacent differences on this grid only.
+
+On the recorded run, maximum absolute errors versus BSM over each call's
+nine bump/step combinations were:
+
+| Call moneyness | Maximum delta error | Maximum gamma error |
+|---|---:|---:|
+| ITM (S=110) | 0.0227528 | 0.214811 |
+| ATM (S=100) | 0.00270875 | 0.817674 |
+| OTM (S=90) | 0.0120861 | 0.0218197 |
+
+Default-bump gamma was particularly unreliable: for the ATM call it ranged
+from `0.419203` to `0.836436` across the three tree sizes, versus BSM gamma
+`0.0187620`. The deep ITM put (S=40, K=100, r=0.10) exercised at all three
+sampled spots for every tested bump and step count; it returned delta `-1`
+and gamma approximately `0`. The boundary put (S=83) crossed from exercise to
+continuation at the upper 5% bump for 160- and 320-step trees, while the
+80-step tree classified all three spots as exercise. Gamma near that boundary
+is therefore unreliable even when a particular neighboring-change screen
+looks small. Results do not justify changing the default bump or assuming
+that more steps improve every estimate.
+
 The compiled `_voledge_native` module also exposes
 `price_american_crr(option, market, model, steps)`. It accepts the module's
 `Option`, `MarketState` and `ModelParameters` types, returns a scalar price,
